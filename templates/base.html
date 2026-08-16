@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Pillai University – Event Resource System{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#fff7ed', 100:'#ffedd5', 500:'#f97316', 600:'#ea580c', 700:'#c2410c', 800:'#9a3412', 900:'#7c2d12' },
+            navy: { 700:'#1e3a5f', 800:'#162d4a', 900:'#0f1f35' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .flash-success { background:#d1fae5; border-left:4px solid #10b981; color:#065f46; }
+    .flash-error   { background:#fee2e2; border-left:4px solid #ef4444; color:#991b1b; }
+    .flash-info    { background:#dbeafe; border-left:4px solid #3b82f6; color:#1e40af; }
+    .flash-warning { background:#fef3c7; border-left:4px solid #f59e0b; color:#78350f; }
+    .badge-Draft      { background:#e5e7eb; color:#374151; }
+    .badge-Pending    { background:#fef3c7; color:#92400e; }
+    .badge-Approved   { background:#d1fae5; color:#065f46; }
+    .badge-Rejected   { background:#fee2e2; color:#991b1b; }
+    .badge-Cancelled  { background:#f3f4f6; color:#6b7280; }
+    .badge-Completed  { background:#dbeafe; color:#1e40af; }
+    .badge-Allocated  { background:#d1fae5; color:#065f46; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+<!-- Top navbar -->
+<nav class="bg-navy-900 text-white shadow-lg" style="background:#0f1f35;">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="/" class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center font-bold text-white text-lg">P</div>
+      <div>
+        <div class="font-bold text-lg leading-tight">Pillai University</div>
+        <div class="text-xs text-orange-300">Event Resource Management</div>
+      </div>
+    </a>
+    <div class="flex items-center gap-1 text-sm">
+      <a href="/" class="px-3 py-2 rounded hover:bg-white/10 transition {% if request.path == '/' %}bg-white/10{% endif %}">Dashboard</a>
+      <a href="/events" class="px-3 py-2 rounded hover:bg-white/10 transition {% if '/events' in request.path %}bg-white/10{% endif %}">Events</a>
+      <a href="/resources" class="px-3 py-2 rounded hover:bg-white/10 transition {% if '/resources' in request.path and 'availability' not in request.path %}bg-white/10{% endif %}">Resources</a>
+      <a href="/requests" class="px-3 py-2 rounded hover:bg-white/10 transition {% if '/requests' in request.path %}bg-white/10{% endif %}">Requests</a>
+      <a href="/resources/availability" class="px-3 py-2 rounded hover:bg-white/10 transition {% if 'availability' in request.path %}bg-white/10{% endif %}">Availability</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Flash messages -->
+<div class="max-w-7xl mx-auto px-4 pt-4">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flash-{{ category }} p-3 rounded mb-2 flex items-start gap-2">
+          <span>{% if category == 'success' %}✅{% elif category == 'error' %}❌{% elif category == 'info' %}💡{% else %}⚠️{% endif %}</span>
+          <span>{{ message }}</span>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+</div>
+
+<!-- Main content -->
+<main class="max-w-7xl mx-auto px-4 py-6">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="text-center text-xs text-gray-400 py-6 mt-10 border-t">
+  Pillai University – Event Resource Allocation System &copy; 2026
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% block title %}Request #{{ req.id }} – Pillai University{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="/requests" class="text-sm text-gray-500 hover:text-gray-700">← Back to Requests</a>
+</div>
+
+<div class="flex items-start justify-between mb-6 flex-wrap gap-3">
+  <div>
+    <div class="flex items-center gap-3">
+      <h1 class="text-2xl font-bold text-gray-900">Resource Request #{{ req.id }}</h1>
+      <span class="badge-{{ req.status }} px-3 py-1 rounded-full text-sm font-medium">{{ req.status }}</span>
+    </div>
+    <p class="text-sm text-gray-500 mt-1">For event: <a href="/events/{{ req.event_id }}" class="text-orange-600 hover:underline">{{ req.event.name }}</a></p>
+  </div>
+
+  {% if req.status == 'Pending' %}
+  <div class="flex gap-2 flex-wrap">
+    <form method="post" action="/requests/{{ req.id }}/approve"
+      onsubmit="return confirm('Approve and allocate all resources in this request?')">
+      <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        ✅ Approve & Allocate
+      </button>
+    </form>
+
+    <button onclick="document.getElementById('reject-modal').classList.remove('hidden')"
+      class="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm hover:bg-red-100 transition">
+      ❌ Reject
+    </button>
+  </div>
+  {% endif %}
+
+  {% if req.status in ['Pending', 'Approved'] %}
+  <form method="post" action="/requests/{{ req.id }}/cancel"
+    onsubmit="return confirm('Cancel this request and release all allocated resources?')">
+    <button type="submit" class="border text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition">
+      Cancel Request
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+<!-- Reject modal -->
+<div id="reject-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
+    <h3 class="font-semibold text-gray-800 mb-3">Reject Request</h3>
+    <form method="post" action="/requests/{{ req.id }}/reject">
+      <textarea name="rejection_reason" rows="3" placeholder="Reason for rejection (optional)…"
+        class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-3"></textarea>
+      <div class="flex gap-2">
+        <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition">Reject</button>
+        <button type="button" onclick="document.getElementById('reject-modal').classList.add('hidden')"
+          class="border px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-3 gap-6">
+  <div class="md:col-span-2 space-y-5">
+
+    <!-- Request details -->
+    <div class="bg-white border rounded-xl shadow-sm p-5">
+      <h2 class="font-semibold text-gray-800 mb-4">Request Details</h2>
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <div class="text-gray-500 text-xs uppercase mb-1">Resource Usage Start</div>
+          <div class="font-medium">{{ req.start_datetime.strftime('%d %B %Y, %I:%M %p') }}</div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs uppercase mb-1">Resource Usage End</div>
+          <div class="font-medium">{{ req.end_datetime.strftime('%d %B %Y, %I:%M %p') }}</div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs uppercase mb-1">Event Attendance</div>
+          <div class="font-medium">{{ req.event.expected_attendance }} people</div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs uppercase mb-1">Submitted</div>
+          <div class="font-medium">{{ req.created_at.strftime('%d %b %Y, %I:%M %p') }}</div>
+        </div>
+        {% if req.notes %}
+        <div class="col-span-2">
+          <div class="text-gray-500 text-xs uppercase mb-1">Notes</div>
+          <div>{{ req.notes }}</div>
+        </div>
+        {% endif %}
+        {% if req.rejection_reason %}
+        <div class="col-span-2">
+          <div class="text-gray-500 text-xs uppercase mb-1">Rejection Reason</div>
+          <div class="text-red-700 bg-red-50 p-2 rounded">{{ req.rejection_reason }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Requested items -->
+    <div class="bg-white border rounded-xl shadow-sm">
+      <div class="p-5 border-b">
+        <h2 class="font-semibold text-gray-800">Requested Resources</h2>
+        {% if req.status == 'Pending' %}
+        <p class="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2 mt-2">
+          ⚠️ All resources must be available for the request to be approved. If any one fails, the entire request is rejected.
+        </p>
+        {% endif %}
+      </div>
+      <div class="divide-y">
+        {% for item in req.items %}
+        <div class="p-4">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="font-medium text-sm text-gray-900">
+                {{ item.quantity }}× {{ item.resource_type }}
+                {% if item.preferred_resource %}
+                  <span class="text-gray-500 font-normal text-xs">– preferred: {{ item.preferred_resource.name }}</span>
+                {% endif %}
+              </div>
+            </div>
+            {% if req.status == 'Pending' and alternatives.get(item.id) %}
+            <div class="text-xs bg-blue-50 border border-blue-200 text-blue-800 px-2 py-1 rounded-lg">
+              💡 Alt available: <strong>{{ alternatives[item.id].name }}</strong>
+              {% if alternatives[item.id].capacity %} (Cap: {{ alternatives[item.id].capacity }}){% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Allocations (if approved) -->
+    {% if req.allocations %}
+    <div class="bg-white border rounded-xl shadow-sm">
+      <div class="p-5 border-b">
+        <h2 class="font-semibold text-gray-800">Allocated Resources</h2>
+      </div>
+      <div class="divide-y">
+        {% for alloc in req.allocations %}
+        <div class="px-5 py-3 flex items-center justify-between text-sm">
+          <div>
+            <div class="font-medium text-gray-900">{{ alloc.resource.name }}</div>
+            <div class="text-xs text-gray-400">{{ alloc.resource.resource_type }}{% if alloc.resource.capacity %} · Cap: {{ alloc.resource.capacity }}{% endif %}</div>
+          </div>
+          <span class="badge-{{ alloc.status }} px-2 py-0.5 rounded-full text-xs font-medium">{{ alloc.status }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Sidebar: event info -->
+  <div class="space-y-4">
+    <div class="bg-white border rounded-xl shadow-sm p-5">
+      <h2 class="font-semibold text-gray-800 mb-3 text-sm">Event Information</h2>
+      <div class="space-y-2 text-sm">
+        <div>
+          <div class="text-xs text-gray-400 uppercase">Event</div>
+          <a href="/events/{{ req.event_id }}" class="font-medium text-orange-600 hover:underline">{{ req.event.name }}</a>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400 uppercase">Organizer</div>
+          <div class="font-medium">{{ req.event.organizer }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400 uppercase">Event Date</div>
+          <div>{{ req.event.start_datetime.strftime('%d %b %Y') }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400 uppercase">Attendance</div>
+          <div>{{ req.event.expected_attendance }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-gray-400 uppercase">Event Status</div>
+          <span class="badge-{{ req.event.status }} px-2 py-0.5 rounded-full text-xs font-medium">{{ req.event.status }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workflow info -->
+    <div class="bg-white border rounded-xl shadow-sm p-5">
+      <h2 class="font-semibold text-gray-800 mb-3 text-sm">Approval Workflow</h2>
+      <div class="text-xs text-gray-600 space-y-1">
+        <div class="{% if req.status == 'Pending' %}font-bold text-yellow-700{% endif %}">1. Pending – Awaiting review</div>
+        <div class="{% if req.status == 'Approved' %}font-bold text-green-700{% endif %}">2. Approved → Allocated</div>
+        <div class="{% if req.status == 'Rejected' %}font-bold text-red-700{% endif %}">   or Rejected</div>
+        <div class="{% if req.status == 'Cancelled' %}font-bold text-gray-700{% endif %}">3. Cancelled (releases resources)</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

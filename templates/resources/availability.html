@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Resource Availability – Pillai University{% endblock %}
+{% block content %}
+
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Resource Availability</h1>
+  <p class="text-sm text-gray-500 mt-1">Check which resources are booked on a given day</p>
+</div>
+
+<form method="get" class="bg-white border rounded-xl p-4 mb-6 flex items-end gap-4 shadow-sm">
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Select Date</label>
+    <input type="date" name="date" value="{{ date_str }}"
+      class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+  </div>
+  <button type="submit" class="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-orange-700 transition">Check</button>
+</form>
+
+<div class="mb-3 text-sm text-gray-500">
+  Showing allocations for <strong>{{ selected_date.strftime('%A, %d %B %Y') }}</strong>
+</div>
+
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for resource in resources %}
+  {% set allocs = availability_data[resource.id] %}
+  <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+      <div>
+        <div class="font-medium text-sm text-gray-900">{{ resource.name }}</div>
+        <div class="text-xs text-gray-400">{{ resource.resource_type }}{% if resource.capacity %} · Cap: {{ resource.capacity }}{% endif %}</div>
+      </div>
+      {% if allocs %}
+        <span class="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{{ allocs|length }} booking(s)</span>
+      {% else %}
+        <span class="text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Free</span>
+      {% endif %}
+    </div>
+    {% if allocs %}
+    <div class="divide-y">
+      {% for alloc in allocs %}
+      <div class="px-4 py-2 text-xs">
+        <div class="font-medium text-gray-700">{{ alloc.request.event.name }}</div>
+        <div class="text-gray-400 mt-0.5">{{ alloc.start_datetime.strftime('%I:%M %p') }} – {{ alloc.end_datetime.strftime('%I:%M %p') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="px-4 py-4 text-xs text-gray-400 text-center">No bookings on this day</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if not resources %}
+<div class="bg-white border rounded-xl p-12 text-center text-gray-400 shadow-sm">
+  <div class="text-4xl mb-3">🔍</div>
+  <div>No active resources found.</div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}Resources – Pillai University{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Resources</h1>
+    <p class="text-sm text-gray-500 mt-1">{{ resources|length }} resource(s) found</p>
+  </div>
+  <a href="/resources/create" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">+ Add Resource</a>
+</div>
+
+<!-- Filters -->
+<form method="get" class="bg-white border rounded-xl p-4 mb-6 flex flex-wrap gap-4 shadow-sm">
+  <div class="flex-1 min-w-40">
+    <label class="block text-xs font-medium text-gray-600 mb-1">Filter by Type</label>
+    <select name="type" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+      <option value="">All Types</option>
+      {% for t in resource_types %}
+        <option value="{{ t }}" {% if t == type_filter %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="flex-1 min-w-40">
+    <label class="block text-xs font-medium text-gray-600 mb-1">Active Status</label>
+    <select name="active" class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+      <option value="">All</option>
+      <option value="1" {% if active_filter == '1' %}selected{% endif %}>Active Only</option>
+      <option value="0" {% if active_filter == '0' %}selected{% endif %}>Inactive Only</option>
+    </select>
+  </div>
+  <div class="flex items-end gap-2">
+    <button type="submit" class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700 transition">Filter</button>
+    <a href="/resources" class="border px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition">Clear</a>
+  </div>
+</form>
+
+{% if resources %}
+<div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+      <tr>
+        <th class="px-4 py-3 text-left">Resource</th>
+        <th class="px-4 py-3 text-left">Type</th>
+        <th class="px-4 py-3 text-center">Capacity</th>
+        <th class="px-4 py-3 text-center">Status</th>
+        <th class="px-4 py-3 text-left">Actions</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y">
+      {% for res in resources %}
+      <tr class="hover:bg-gray-50 transition {% if not res.is_active %}opacity-60{% endif %}">
+        <td class="px-4 py-3">
+          <div class="font-medium text-gray-900">{{ res.name }}</div>
+          {% if res.description %}<div class="text-xs text-gray-400 mt-0.5">{{ res.description }}</div>{% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <span class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs font-medium">{{ res.resource_type }}</span>
+        </td>
+        <td class="px-4 py-3 text-center text-gray-600">
+          {% if res.capacity %}{{ res.capacity }}{% else %}<span class="text-gray-300">—</span>{% endif %}
+        </td>
+        <td class="px-4 py-3 text-center">
+          {% if res.is_active %}
+            <span class="badge-Approved px-2 py-0.5 rounded-full text-xs font-medium">Active</span>
+          {% else %}
+            <span class="badge-Cancelled px-2 py-0.5 rounded-full text-xs font-medium">Inactive</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <div class="flex gap-2 items-center">
+            <a href="/resources/{{ res.id }}/edit" class="text-xs text-gray-600 hover:underline">Edit</a>
+            <form method="post" action="/resources/{{ res.id }}/toggle">
+              <button type="submit" class="text-xs {% if res.is_active %}text-red-600{% else %}text-green-600{% endif %} hover:underline">
+                {{ 'Deactivate' if res.is_active else 'Activate' }}
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white border rounded-xl p-12 text-center text-gray-400 shadow-sm">
+  <div class="text-4xl mb-3">🏛️</div>
+  <div class="font-medium">No resources found.</div>
+  <div class="text-sm mt-1"><a href="/resources/create" class="text-orange-600 hover:underline">Add the first resource →</a></div>
+</div>
+{% endif %}
+
+{% endblock %}

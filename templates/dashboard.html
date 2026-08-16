@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard – Pillai University{% endblock %}
+{% block content %}
+
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+  <p class="text-gray-500 text-sm mt-1">Overview of events and resource allocations at Pillai University</p>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
+    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center text-2xl">📅</div>
+    <div>
+      <div class="text-2xl font-bold text-gray-900">{{ total_events }}</div>
+      <div class="text-xs text-gray-500">Total Events</div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
+    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-2xl">🏛️</div>
+    <div>
+      <div class="text-2xl font-bold text-gray-900">{{ active_resources }}<span class="text-sm text-gray-400">/{{ total_resources }}</span></div>
+      <div class="text-xs text-gray-500">Active Resources</div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
+    <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center text-2xl">⏳</div>
+    <div>
+      <div class="text-2xl font-bold text-gray-900">{{ pending_requests }}</div>
+      <div class="text-xs text-gray-500">Pending Requests</div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
+    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center text-2xl">✅</div>
+    <div>
+      <div class="text-2xl font-bold text-gray-900">{{ status_counts.get('Approved', 0) }}</div>
+      <div class="text-xs text-gray-500">Approved Events</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6 mb-8">
+  <!-- Event status breakdown -->
+  <div class="bg-white rounded-xl border shadow-sm p-5">
+    <h2 class="font-semibold text-gray-800 mb-4">Event Status Breakdown</h2>
+    <div class="space-y-2">
+      {% for status, count in status_counts.items() %}
+      <div class="flex items-center justify-between">
+        <span class="text-sm"><span class="badge-{{ status }} px-2 py-0.5 rounded-full text-xs font-medium">{{ status }}</span></span>
+        <div class="flex items-center gap-2">
+          <div class="h-2 bg-gray-100 rounded-full w-32">
+            {% if total_events > 0 %}
+            <div class="h-2 bg-orange-400 rounded-full" style="width: {{ (count / total_events * 100)|round }}%"></div>
+            {% endif %}
+          </div>
+          <span class="text-sm font-medium text-gray-700 w-6 text-right">{{ count }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="bg-white rounded-xl border shadow-sm p-5">
+    <h2 class="font-semibold text-gray-800 mb-4">Quick Actions</h2>
+    <div class="grid grid-cols-2 gap-3">
+      <a href="/events/create" class="flex items-center gap-2 p-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg transition text-sm font-medium text-orange-800">
+        <span>➕</span> New Event
+      </a>
+      <a href="/requests/create" class="flex items-center gap-2 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition text-sm font-medium text-blue-800">
+        <span>📋</span> Request Resources
+      </a>
+      <a href="/resources/create" class="flex items-center gap-2 p-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition text-sm font-medium text-green-800">
+        <span>🔧</span> Add Resource
+      </a>
+      <a href="/resources/availability" class="flex items-center gap-2 p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition text-sm font-medium text-purple-800">
+        <span>📊</span> Check Availability
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6">
+  <!-- Upcoming events -->
+  <div class="bg-white rounded-xl border shadow-sm">
+    <div class="flex items-center justify-between p-5 border-b">
+      <h2 class="font-semibold text-gray-800">Upcoming Events</h2>
+      <a href="/events" class="text-xs text-orange-600 hover:underline">View all →</a>
+    </div>
+    {% if upcoming_events %}
+    <div class="divide-y">
+      {% for event in upcoming_events %}
+      <a href="/events/{{ event.id }}" class="flex items-start gap-3 p-4 hover:bg-gray-50 transition">
+        <div class="min-w-0 flex-1">
+          <div class="font-medium text-sm text-gray-900 truncate">{{ event.name }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">{{ event.start_datetime.strftime('%d %b %Y, %I:%M %p') }} · {{ event.organizer }}</div>
+        </div>
+        <span class="badge-{{ event.status }} px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">{{ event.status }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-400 text-sm">No upcoming events. <a href="/events/create" class="text-orange-600 hover:underline">Create one →</a></div>
+    {% endif %}
+  </div>
+
+  <!-- Recent requests -->
+  <div class="bg-white rounded-xl border shadow-sm">
+    <div class="flex items-center justify-between p-5 border-b">
+      <h2 class="font-semibold text-gray-800">Recent Resource Requests</h2>
+      <a href="/requests" class="text-xs text-orange-600 hover:underline">View all →</a>
+    </div>
+    {% if recent_requests %}
+    <div class="divide-y">
+      {% for req in recent_requests %}
+      <a href="/requests/{{ req.id }}" class="flex items-start gap-3 p-4 hover:bg-gray-50 transition">
+        <div class="min-w-0 flex-1">
+          <div class="font-medium text-sm text-gray-900 truncate">{{ req.event.name }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">{{ req.start_datetime.strftime('%d %b %Y, %I:%M %p') }} · {{ req.items|length }} resource type(s)</div>
+        </div>
+        <span class="badge-{{ req.status }} px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">{{ req.status }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-400 text-sm">No requests yet. <a href="/requests/create" class="text-orange-600 hover:underline">Make a request →</a></div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

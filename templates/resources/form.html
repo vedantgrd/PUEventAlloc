@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}{{ action }} Resource – Pillai University{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="/resources" class="text-sm text-gray-500 hover:text-gray-700">← Back to Resources</a>
+  <h1 class="text-2xl font-bold text-gray-900 mt-2">{{ action }} Resource</h1>
+</div>
+
+<div class="max-w-xl">
+  <form method="post" class="bg-white border rounded-xl shadow-sm p-6 space-y-5">
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Resource Name <span class="text-red-500">*</span></label>
+      <input type="text" name="name" value="{{ form_data.get('name', '') }}" required
+        class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        placeholder="e.g. Main Auditorium">
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Resource Type <span class="text-red-500">*</span></label>
+      <select name="resource_type" id="resource_type" required
+        class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
+        <option value="">Select type…</option>
+        {% for t in resource_types %}
+          <option value="{{ t }}" {% if form_data.get('resource_type') == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div id="capacity_field" class="{% if form_data.get('resource_type') not in capacity_types %}hidden{% endif %}">
+      <label class="block text-sm font-medium text-gray-700 mb-1">Capacity <span class="text-red-500">*</span></label>
+      <input type="number" name="capacity" value="{{ form_data.get('capacity', '') }}" min="1"
+        class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        placeholder="Maximum number of people">
+      <p class="text-xs text-gray-400 mt-1">Required for Auditorium and Laboratory types.</p>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <input type="checkbox" name="is_active" id="is_active"
+        {% if form_data.get('is_active', True) == True or form_data.get('is_active') == 'on' %}checked{% endif %}
+        class="w-4 h-4 accent-orange-500">
+      <label for="is_active" class="text-sm font-medium text-gray-700">Active (can be allocated to events)</label>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+      <textarea name="description" rows="2"
+        class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        placeholder="Optional notes">{{ form_data.get('description', '') }}</textarea>
+    </div>
+
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition">
+        {{ action }} Resource
+      </button>
+      <a href="/resources" class="border px-5 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition">Cancel</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const capacityTypes = {{ capacity_types | tojson }};
+const select = document.getElementById('resource_type');
+const capField = document.getElementById('capacity_field');
+select.addEventListener('change', () => {
+  capField.classList.toggle('hidden', !capacityTypes.includes(select.value));
+});
+</script>
+{% endblock %}

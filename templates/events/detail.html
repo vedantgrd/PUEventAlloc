@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}{{ event.name }} – Pillai University{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="/events" class="text-sm text-gray-500 hover:text-gray-700">← Back to Events</a>
+</div>
+
+<div class="flex items-start justify-between mb-6 flex-wrap gap-3">
+  <div>
+    <div class="flex items-center gap-3 flex-wrap">
+      <h1 class="text-2xl font-bold text-gray-900">{{ event.name }}</h1>
+      <span class="badge-{{ event.status }} px-3 py-1 rounded-full text-sm font-medium">{{ event.status }}</span>
+    </div>
+    <p class="text-sm text-gray-500 mt-1">Organized by {{ event.organizer }}</p>
+  </div>
+  <div class="flex gap-2 flex-wrap">
+    {% if event.status not in ['Cancelled', 'Completed'] %}
+    <a href="/events/{{ event.id }}/edit" class="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition">Edit</a>
+    {% endif %}
+    {% if event.status not in ['Cancelled', 'Completed'] %}
+    <form method="post" action="/events/{{ event.id }}/cancel" onsubmit="return confirm('Cancel this event and all its resource allocations?')">
+      <button type="submit" class="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm hover:bg-red-100 transition">Cancel Event</button>
+    </form>
+    {% endif %}
+    {% if event.status in ['Approved', 'Pending'] %}
+    <a href="/requests/create?event_id={{ event.id }}" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">+ Request Resources</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid md:grid-cols-3 gap-6 mb-8">
+  <div class="md:col-span-2 space-y-4">
+    <!-- Event details -->
+    <div class="bg-white border rounded-xl shadow-sm p-5">
+      <h2 class="font-semibold text-gray-800 mb-4">Event Details</h2>
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <div class="text-gray-500 text-xs uppercase mb-1">Start</div>
+          <div class="font-medium">{{ event.start_datetime.strftime('%d %B %Y, %I:%M %p') }}</div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs uppercase mb-1">End</div>
+          <div class="font-medium">{{ event.end_datetime.strftime('%d %B %Y, %I:%M %p') }}</div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs uppercase mb-1">Expected Attendance</div>
+          <div class="font-medium">{{ event.expected_attendance }} people</div>
+        </div>
+        <div>
+          <div class="text-gray-500 text-xs uppercase mb-1">Created</div>
+          <div class="font-medium">{{ event.created_at.strftime('%d %b %Y') }}</div>
+        </div>
+        {% if event.description %}
+        <div class="col-span-2">
+          <div class="text-gray-500 text-xs uppercase mb-1">Description</div>
+          <div>{{ event.description }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Resource requests for this event -->
+    <div class="bg-white border rounded-xl shadow-sm">
+      <div class="flex items-center justify-between p-5 border-b">
+        <h2 class="font-semibold text-gray-800">Resource Requests</h2>
+        {% if event.status not in ['Cancelled'] %}
+        <a href="/requests/create?event_id={{ event.id }}" class="text-xs text-orange-600 hover:underline">+ New Request</a>
+        {% endif %}
+      </div>
+      {% if event.resource_requests %}
+      <div class="divide-y">
+        {% for req in event.resource_requests %}
+        <a href="/requests/{{ req.id }}" class="flex items-center justify-between p-4 hover:bg-gray-50 transition">
+          <div>
+            <div class="text-sm font-medium">Request #{{ req.id }}</div>
+            <div class="text-xs text-gray-500 mt-0.5">
+              {{ req.start_datetime.strftime('%d %b, %I:%M %p') }} – {{ req.end_datetime.strftime('%I:%M %p') }}
+              · {{ req.items|length }} resource type(s)
+            </div>
+          </div>
+          <span class="badge-{{ req.status }} px-2 py-0.5 rounded-full text-xs font-medium">{{ req.status }}</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="p-8 text-center text-gray-400 text-sm">No resource requests for this event.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Status flow sidebar -->
+  <div class="space-y-4">
+    <div class="bg-white border rounded-xl shadow-sm p-5">
+      <h2 class="font-semibold text-gray-800 mb-4 text-sm">Status Workflow</h2>
+      <div class="space-y-2 text-xs">
+        {% for s in ['Draft', 'Pending', 'Approved', 'Rejected', 'Cancelled', 'Completed'] %}
+        <div class="flex items-center gap-2">
+          <span class="badge-{{ s }} px-2 py-0.5 rounded-full font-medium {% if s == event.status %}ring-2 ring-orange-400{% endif %}">{{ s }}</span>
+          {% if s == event.status %}<span class="text-orange-600 font-medium">← current</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
