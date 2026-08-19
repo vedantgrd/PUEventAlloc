@@ -1,6 +1,19 @@
-# Pillai University – Event Resource Allocation System
+# PUEventAlloc — Pillai University Event Resource Allocation System
 
-A web application for managing events and shared resources (auditoriums, labs, projectors, microphones, cameras, computers) at Pillai University.
+A Flask web application for managing college events and shared resources (auditoriums, labs, projectors, microphones, cameras, computers) with conflict detection, atomic allocation, and role-based access control.
+
+---
+
+## Features
+
+- **Event Management** — Create, edit, cancel, and filter events (Draft → Pending → Approved → Completed/Cancelled)
+- **Resource Management** — Admin manages resources with activate/deactivate; inactive resources cannot be allocated
+- **Resource Requests** — Organizers request one or more resources per event with a specific time window
+- **Conflict Detection** — Backend prevents double-booking; back-to-back bookings are allowed
+- **Atomic Allocation** — If any resource in a request fails, zero are allocated (all-or-nothing transaction)
+- **Alternative Suggestions** — System suggests the best available alternative when a resource is unavailable
+- **Role-Based Access** — Admin vs Organizer with server-side enforcement; no IDOR vulnerabilities
+- **Approval Workflow** — Pending → Approved (Allocated) / Rejected; cancellation releases resources
 
 ---
 
@@ -8,10 +21,33 @@ A web application for managing events and shared resources (auditoriums, labs, p
 
 | Layer | Technology |
 |---|---|
-| Backend | Python 3.10+, Flask |
-| ORM | SQLAlchemy + Flask-Migrate |
+| Backend | Python 3.10+, Flask 3 |
+| ORM | SQLAlchemy 2 + Flask-Migrate |
 | Database | SQLite |
+| Auth | Flask-Login + Werkzeug password hashing |
 | Frontend | Jinja2, Tailwind CSS (CDN), vanilla JS |
+| Testing | pytest + pytest-flask |
+| CI | GitHub Actions |
+
+---
+
+## Architecture
+
+```
+Browser
+  │
+  ▼
+Flask Routes (app.py)
+  │  ← login_required / admin_required decorators
+  ▼
+Business Services (services.py)
+  │  ← conflict detection, alternative selection, atomic allocation
+  ▼
+SQLAlchemy ORM (models.py)
+  │
+  ▼
+SQLite (pillai_events.db)
+```
 
 ---
 
@@ -19,21 +55,22 @@ A web application for managing events and shared resources (auditoriums, labs, p
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url>
-cd pillai_event_system
+git clone https://github.com/vedantgrd/PUEventAlloc
+cd PUEventAlloc
 
-# 2. Create and activate a virtual environment
+# 2. Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Set environment variables (optional — defaults work for local dev)
+# 4. Configure environment
 cp .env.example .env
+# Edit .env and set a strong SECRET_KEY
 
-# 5. Initialize the database (creates tables + seeds 15 sample resources)
-python init_db.py
+# 5. Seed demo data (creates DB + sample users/events/resources)
+python seed.py
 
 # 6. Run the application
 python app.py
@@ -44,89 +81,198 @@ python app.py
 
 ## Database Setup
 
-The database is SQLite (`pillai_events.db`, created automatically on first run).
+SQLite database is created automatically. Tables are created by `db.create_all()` on startup.
 
-**Tables:**
+**Schema:**
 
 | Table | Purpose |
 |---|---|
-| `events` | Stores event details and status |
-| `resources` | Stores all allocatable resources |
-| `resource_requests` | A request to use resources for an event |
-| `resource_request_items` | Each line item in a request (type, qty, preference) |
-| `resource_allocations` | Confirmed allocations linking a resource to a request |
+| `users` | Admin and Organizer accounts with hashed passwords |
+| `events` | Event details and lifecycle status |
+| `resources` | Allocatable resources with type, capacity, active flag |
+| `resource_requests` | A request to use resources for an event at a specific time |
+| `resource_request_items` | Line items in a request (type, quantity, preferred resource) |
+| `resource_allocations` | Confirmed allocations; cancelled records are preserved for history |
 
-**Seed data:** Running `python init_db.py` creates 15 sample resources:
-- 3 Auditoriums (Main 500, Mini 200, Seminar Hall A 100)
-- 3 Laboratories (Computer Lab 1 × 60, Computer Lab 2 × 40, Science Lab × 30)
-- 3 Projectors
-- 3 Microphones
-- 2 Cameras
-- 1 Computer set
+**Indexes on `resource_allocations`:**
+- `ix_alloc_resource_time` — `(resource_id, start_datetime, end_datetime)` — makes conflict queries fast
+- `ix_alloc_status` — `status` — fast filtering of active vs cancelled
 
-To reset the database, delete `pillai_events.db` and re-run `python init_db.py`.
+To reset: delete `pillai_events.db` then `python seed.py`.
+
+---
+
+## Demo Credentials
+
+| Role | Username | Password |
+|---|---|---|
+| Admin | `admin` | `admin123` |
+| Organizer | `organizer` | `org123` |
+| Organizer | `organizer2` | `org123` |
+
+> Change passwords before deploying anywhere public.
 
 ---
 
 ## How Conflict Detection Works
 
-A **time overlap** exists when:
+A conflict exists when two allocations for the same resource **overlap in time**. The canonical formula:
+
 ```
-existing.start_datetime < new.end_datetime
+existing.start_datetime < requested.end_datetime
 AND
-existing.end_datetime > new.start_datetime
+existing.end_datetime   > requested.start_datetime
 ```
 
-This correctly handles all overlap cases:
-- Partial overlap (e.g. existing 10–14, new 12–16) → **conflict**
-- Full containment → **conflict**
-- Back-to-back (existing 10–14, new 14–18) → **allowed** (boundary touching is NOT a conflict)
+This correctly identifies all overlap shapes:
 
-The check runs in `services.check_resource_conflict()` against `resource_allocations` where `status = 'Allocated'`. Cancelled allocations are excluded, so cancelled bookings free the slot immediately.
+| Case | Existing | New | Result |
+|---|---|---|---|
+| Partial overlap | 10:00–14:00 | 12:00–16:00 | ❌ CONFLICT |
+| Back-to-back | 10:00–14:00 | 14:00–16:00 | ✅ ALLOWED |
+| Before | 10:00–14:00 | 08:00–10:00 | ✅ ALLOWED |
+| Exact same | 10:00–14:00 | 10:00–14:00 | ❌ CONFLICT |
+| New contains existing | 10:00–14:00 | 09:00–15:00 | ❌ CONFLICT |
+| New inside existing | 10:00–14:00 | 11:00–12:00 | ❌ CONFLICT |
+| New wraps existing | 10:00–14:00 | 08:00–16:00 | ❌ CONFLICT |
 
-**Atomicity:** When a request is approved, all resources are allocated inside a single SQLAlchemy transaction. If any resource fails (conflict discovered mid-allocation, inactive resource, etc.), the entire transaction is rolled back — no partial allocations occur.
+Only `status = 'Allocated'` records block resources. Cancelled allocations are excluded.
+
+Back-to-back bookings are allowed because `14:00 < 14:00` is `False` — the formula naturally handles this without special-casing.
 
 ---
 
-## How Alternative Resources Are Selected
+## Atomic Multi-Resource Transactions
 
-When a requested resource is unavailable or unsuitable, `services.find_alternative()` selects a substitute:
+Implemented in `services.process_allocation()`:
 
-1. **Filter by type** — only resources of the same type are considered (e.g., Projector for Projector).
-2. **Filter active** — inactive resources are excluded.
-3. **Filter by capacity** — for venue types (Auditorium, Laboratory), only resources with `capacity ≥ event.expected_attendance` are eligible.
-4. **Check availability** — each candidate is checked for time conflicts using the same overlap logic.
-5. **Pick smallest fit** — candidates are sorted by capacity ascending (for venues), so the smallest room that fits is preferred over a larger one. For non-capacity types, sorted alphabetically.
-6. **Return first match** — the first candidate that passes all checks is returned.
+```
+BEGIN (implicit SQLAlchemy session)
+  For each resource in the request:
+    1. Revalidate: resource still exists
+    2. Revalidate: resource still active (race condition safe)
+    3. Revalidate: resource type still matches
+    4. Revalidate: capacity still sufficient
+    5. Revalidate: no time conflict (race condition safe)
+    If any check fails → db.session.rollback() → return error
+  All checks passed → db.session.add(all allocations) → commit
+```
 
-If no suitable alternative exists, `None` is returned and the user sees an error message.
+**No allocations are created until every resource passes all checks.** If the commit fails, SQLAlchemy rolls back automatically.
+
+---
+
+## Alternative Resource Selection
+
+Implemented in `services.find_alternative()`:
+
+1. **Filter by type** — same `resource_type` as requested
+2. **Filter active** — `is_active = True` only
+3. **Filter by capacity** — for venues (Auditorium, Laboratory): `capacity >= event.expected_attendance`
+4. **Check availability** — no active allocation overlapping the requested time
+5. **Rank** — ascending capacity (smallest room that fits) for venues; alphabetical for equipment
+6. **Return first match** — deterministic; first conflict-free candidate is suggested
+
+Example: attendance=80, Hall A (cap 100) and Hall B (cap 200) both available → Hall A is suggested (smallest fit).
+
+---
+
+## Approval-Time Revalidation (Race Condition Safety)
+
+Resources are revalidated **at the moment of approval**, not just at request creation:
+
+- A resource deactivated after the request was submitted → approval fails
+- A resource booked by another request after submission → approval fails
+
+This prevents stale state from causing incorrect allocations.
+
+---
+
+## Authentication & Authorization
+
+- Passwords hashed with Werkzeug (PBKDF2 + SHA-256)
+- Sessions managed by Flask-Login
+- Two roles: `Admin` and `Organizer`
+
+| Action | Admin | Organizer |
+|---|---|---|
+| Create/edit own events | ✅ | ✅ |
+| View others' events | ✅ | ❌ (403) |
+| Add/edit resources | ✅ | ❌ (403) |
+| Activate/deactivate resources | ✅ | ❌ (403) |
+| Approve/reject requests | ✅ | ❌ (403) |
+| View all requests | ✅ | Own only |
+
+Authorization is enforced server-side on every route. Hiding buttons in HTML is not sufficient — direct URL access is blocked.
+
+---
+
+## Request-Within-Event Validation
+
+A resource request's time window must fall within the event's time window:
+
+```
+event.start_datetime <= request.start_datetime
+AND
+request.end_datetime <= event.end_datetime
+```
+
+Enforced on the backend in `app.py::request_create`.
+
+---
+
+## Testing
+
+```bash
+# Run all 59 tests
+pytest tests/ -v
+
+# Run a specific module
+pytest tests/test_conflicts.py -v
+```
+
+**Test coverage:**
+
+| Module | Tests |
+|---|---|
+| `test_conflicts.py` | 10 — all 7 overlap cases + boundary + cancelled exclusion |
+| `test_allocation.py` | 8 — atomic rollback, cancellation, history preservation |
+| `test_alternatives.py` | 8 — capacity, inactive, type, smallest-fit, back-to-back |
+| `test_authorization.py` | 9 — admin routes, IDOR, state transitions |
+| `test_events.py` | 8 — validation + authorization |
+| `test_requests.py` | 8 — time-window, inactive, wrong type, capacity |
+| `test_resources.py` | 7 — CRUD, capacity rules, duplicate names |
+| **Total** | **59 tests, all passing** |
+
+---
+
+## Environment Variables
+
+See `.env.example`:
+
+```
+SECRET_KEY=replace-with-a-long-random-string
+DATABASE_URL=sqlite:///pillai_events.db
+FLASK_ENV=development
+FLASK_DEBUG=0
+```
+
+Never commit `.env` to version control. Set `SECRET_KEY` to a random 32+ character string in production.
 
 ---
 
 ## Important Assumptions
 
-1. **No authentication** — the system has no login. All pages are accessible to any user. In production, role-based access (organizer vs. admin) should be enforced.
-2. **UTC timestamps** — all datetimes are stored and compared in UTC. No timezone conversion is done in this version.
-3. **Quantity handling** — if an organizer requests `2 × Microphone`, the system finds two *separate* microphone resources. Each gets its own allocation row. If only 1 is available, the whole request fails.
-4. **Capacity check applies to venues only** — Auditoriums and Laboratories have capacity. Projectors, Microphones, Cameras, and Computers do not.
-5. **Resource type validation** — the preferred resource must match the requested type; requesting a Microphone but specifying a Projector as preferred is rejected.
-6. **Allocation is admin-driven** — resource requests are submitted by organizers but approved/rejected by an administrator via the UI.
-7. **Event cancellation cascades** — cancelling an event automatically cancels and releases all its resource allocations.
+1. **No timezone handling** — all datetimes stored and compared in UTC. Production would need timezone-aware timestamps.
+2. **SQLite concurrency** — SQLite has limited concurrent write support. For high traffic, migrate to PostgreSQL.
+3. **No email notifications** — approval/rejection notifications are UI-only.
+4. **No CSRF tokens** — forms rely on Flask-Login's session cookie. Adding Flask-WTF CSRF tokens is recommended for production.
+5. **Organizer identity** — the `organizer` field on events is a free-text name; it is separate from the `owner_id` FK to the logged-in user.
+6. **Capacity for equipment** — Projectors, Microphones, Cameras, and Computers have no meaningful capacity; only Auditoriums and Laboratories require it.
 
----
+## Known Limitations
 
-## Application Pages
-
-| URL | Page |
-|---|---|
-| `/` | Dashboard with stats and quick actions |
-| `/events` | Event list with filter by status/date |
-| `/events/create` | Create new event |
-| `/events/<id>` | Event detail and its resource requests |
-| `/events/<id>/edit` | Edit an event |
-| `/resources` | Resource list with filter |
-| `/resources/create` | Add a new resource |
-| `/resources/availability` | Day-view availability calendar |
-| `/requests` | All resource requests |
-| `/requests/create` | Submit a new resource request |
-| `/requests/<id>` | View, approve, reject, or cancel a request |
+- No pagination on long lists
+- No email/password reset flow
+- No file uploads or attachments
+- SQLite not suitable for concurrent production load

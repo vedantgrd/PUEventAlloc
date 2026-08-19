@@ -7,14 +7,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: { 50:'#fff7ed', 100:'#ffedd5', 500:'#f97316', 600:'#ea580c', 700:'#c2410c', 800:'#9a3412', 900:'#7c2d12' },
-            navy: { 700:'#1e3a5f', 800:'#162d4a', 900:'#0f1f35' }
-          }
-        }
-      }
+      theme: { extend: { colors: {
+        brand: { 500:'#f97316', 600:'#ea580c', 700:'#c2410c' },
+        navy: { 900:'#0f1f35' }
+      }}}
     }
   </script>
   <style>
@@ -33,7 +29,7 @@
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen">
 
-<!-- Top navbar -->
+{% if current_user.is_authenticated %}
 <nav class="bg-navy-900 text-white shadow-lg" style="background:#0f1f35;">
   <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
     <a href="/" class="flex items-center gap-3">
@@ -49,16 +45,24 @@
       <a href="/resources" class="px-3 py-2 rounded hover:bg-white/10 transition {% if '/resources' in request.path and 'availability' not in request.path %}bg-white/10{% endif %}">Resources</a>
       <a href="/requests" class="px-3 py-2 rounded hover:bg-white/10 transition {% if '/requests' in request.path %}bg-white/10{% endif %}">Requests</a>
       <a href="/resources/availability" class="px-3 py-2 rounded hover:bg-white/10 transition {% if 'availability' in request.path %}bg-white/10{% endif %}">Availability</a>
+      <div class="ml-3 pl-3 border-l border-white/20 flex items-center gap-2">
+        <span class="text-xs text-gray-300">{{ current_user.name }}
+          <span class="ml-1 px-1.5 py-0.5 rounded text-xs font-medium {% if current_user.is_admin %}bg-orange-500{% else %}bg-blue-600{% endif %}">
+            {{ current_user.role }}
+          </span>
+        </span>
+        <a href="/logout" class="text-xs text-gray-300 hover:text-white hover:underline">Logout</a>
+      </div>
     </div>
   </div>
 </nav>
+{% endif %}
 
-<!-- Flash messages -->
 <div class="max-w-7xl mx-auto px-4 pt-4">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
-        <div class="flash-{{ category }} p-3 rounded mb-2 flex items-start gap-2">
+        <div class="flash-{{ category }} p-3 rounded mb-2 flex items-start gap-2 text-sm">
           <span>{% if category == 'success' %}✅{% elif category == 'error' %}❌{% elif category == 'info' %}💡{% else %}⚠️{% endif %}</span>
           <span>{{ message }}</span>
         </div>
@@ -67,7 +71,6 @@
   {% endwith %}
 </div>
 
-<!-- Main content -->
 <main class="max-w-7xl mx-auto px-4 py-6">
   {% block content %}{% endblock %}
 </main>

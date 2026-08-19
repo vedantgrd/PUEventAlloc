@@ -2,12 +2,34 @@
 {% block title %}Dashboard – Pillai University{% endblock %}
 {% block content %}
 
+{% if current_user.is_admin %}
+{# ═══════════════════════════════════════════════════════════════════════════
+   ADMIN DASHBOARD
+   ═══════════════════════════════════════════════════════════════════════════ #}
+
 <div class="mb-6">
-  <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
-  <p class="text-gray-500 text-sm mt-1">Overview of events and resource allocations at Pillai University</p>
+  <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+  <p class="text-gray-500 text-sm mt-1">Manage resources, review requests, and oversee all events.</p>
 </div>
 
-<!-- Stats -->
+{# Prominent pending requests alert #}
+{% if pending_requests > 0 %}
+<a href="/requests?status=Pending"
+  class="flex items-center gap-4 bg-yellow-50 border-2 border-yellow-300 rounded-xl p-4 mb-6 hover:bg-yellow-100 transition shadow-sm">
+  <div class="w-12 h-12 bg-yellow-400 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">⏳</div>
+  <div class="flex-1">
+    <div class="font-bold text-yellow-900 text-lg">{{ pending_requests }} Resource Request{{ 's' if pending_requests != 1 }} Awaiting Your Approval</div>
+    <div class="text-sm text-yellow-700 mt-0.5">Click here to review and approve or reject pending requests.</div>
+  </div>
+  <div class="text-yellow-600 text-xl">→</div>
+</a>
+{% else %}
+<div class="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-4 mb-6 text-sm text-green-700">
+  ✅ No pending resource requests — all caught up!
+</div>
+{% endif %}
+
+{# Stats #}
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
   <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
     <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center text-2xl">📅</div>
@@ -24,6 +46,132 @@
     </div>
   </div>
   <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
+    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center text-2xl">✅</div>
+    <div>
+      <div class="text-2xl font-bold text-gray-900">{{ approved_requests }}</div>
+      <div class="text-xs text-gray-500">Approved Requests</div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
+    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center text-2xl">📋</div>
+    <div>
+      <div class="text-2xl font-bold text-gray-900">{{ total_requests }}</div>
+      <div class="text-xs text-gray-500">Total Requests</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-6 mb-6">
+  {# Pending requests list #}
+  <div class="bg-white border rounded-xl shadow-sm">
+    <div class="flex items-center justify-between p-5 border-b">
+      <h2 class="font-semibold text-gray-800">⏳ Pending Requests</h2>
+      <a href="/requests?status=Pending" class="text-xs text-orange-600 hover:underline">View all →</a>
+    </div>
+    {% if pending_request_list %}
+    <div class="divide-y">
+      {% for req in pending_request_list %}
+      <div class="p-4 flex items-start gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-sm text-gray-900 truncate">{{ req.event.name }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">
+            {{ req.requester.name if req.requester else '—' }} &nbsp;·&nbsp;
+            {{ req.start_datetime.strftime('%d %b, %I:%M %p') }} – {{ req.end_datetime.strftime('%I:%M %p') }}
+            &nbsp;·&nbsp; {{ req.items|length }} type(s)
+          </div>
+        </div>
+        <a href="/requests/{{ req.id }}"
+          class="flex-shrink-0 bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-lg text-xs font-medium transition">
+          Review
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-400 text-sm">No pending requests.</div>
+    {% endif %}
+  </div>
+
+  {# Quick actions (admin) #}
+  <div class="bg-white border rounded-xl shadow-sm p-5">
+    <h2 class="font-semibold text-gray-800 mb-4">Quick Actions</h2>
+    <div class="grid grid-cols-2 gap-3">
+      <a href="/requests?status=Pending" class="flex items-center gap-2 p-3 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 rounded-lg transition text-sm font-medium text-yellow-800">
+        <span>⏳</span> Pending Requests
+      </a>
+      <a href="/resources/create" class="flex items-center gap-2 p-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition text-sm font-medium text-green-800">
+        <span>🔧</span> Add Resource
+      </a>
+      <a href="/resources" class="flex items-center gap-2 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition text-sm font-medium text-blue-800">
+        <span>🏛️</span> Manage Resources
+      </a>
+      <a href="/resources/availability" class="flex items-center gap-2 p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition text-sm font-medium text-purple-800">
+        <span>📊</span> Availability
+      </a>
+    </div>
+
+    <h2 class="font-semibold text-gray-800 mt-5 mb-3">Event Status Overview</h2>
+    <div class="space-y-2">
+      {% for status, count in status_counts.items() %}
+      <div class="flex items-center justify-between">
+        <span class="badge-{{ status }} px-2 py-0.5 rounded-full text-xs font-medium">{{ status }}</span>
+        <div class="flex items-center gap-2">
+          <div class="h-1.5 bg-gray-100 rounded-full w-24">
+            {% if total_events > 0 %}
+            <div class="h-1.5 bg-orange-400 rounded-full" style="width: {{ [((count / total_events * 100)|round), 100]|min }}%"></div>
+            {% endif %}
+          </div>
+          <span class="text-xs font-medium text-gray-600 w-5 text-right">{{ count }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{# Upcoming events #}
+<div class="bg-white border rounded-xl shadow-sm">
+  <div class="flex items-center justify-between p-5 border-b">
+    <h2 class="font-semibold text-gray-800">Upcoming Events</h2>
+    <a href="/events" class="text-xs text-orange-600 hover:underline">View all →</a>
+  </div>
+  {% if upcoming_events %}
+  <div class="divide-y">
+    {% for event in upcoming_events %}
+    <a href="/events/{{ event.id }}" class="flex items-start gap-3 p-4 hover:bg-gray-50 transition">
+      <div class="min-w-0 flex-1">
+        <div class="font-medium text-sm text-gray-900 truncate">{{ event.name }}</div>
+        <div class="text-xs text-gray-500 mt-0.5">{{ event.start_datetime.strftime('%d %b %Y, %I:%M %p') }} · {{ event.organizer }}</div>
+      </div>
+      <span class="badge-{{ event.status }} px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">{{ event.status }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="p-8 text-center text-gray-400 text-sm">No upcoming events.</div>
+  {% endif %}
+</div>
+
+{% else %}
+{# ═══════════════════════════════════════════════════════════════════════════
+   ORGANIZER DASHBOARD
+   ═══════════════════════════════════════════════════════════════════════════ #}
+
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Welcome, {{ current_user.name }}</h1>
+  <p class="text-gray-500 text-sm mt-1">Manage your events and resource requests.</p>
+</div>
+
+{# Request summary stats #}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
+    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center text-2xl">📅</div>
+    <div>
+      <div class="text-2xl font-bold text-gray-900">{{ total_events }}</div>
+      <div class="text-xs text-gray-500">My Events</div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
     <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center text-2xl">⏳</div>
     <div>
       <div class="text-2xl font-bold text-gray-900">{{ pending_requests }}</div>
@@ -33,35 +181,22 @@
   <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
     <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center text-2xl">✅</div>
     <div>
-      <div class="text-2xl font-bold text-gray-900">{{ status_counts.get('Approved', 0) }}</div>
-      <div class="text-xs text-gray-500">Approved Events</div>
+      <div class="text-2xl font-bold text-gray-900">{{ approved_requests }}</div>
+      <div class="text-xs text-gray-500">Approved</div>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border p-5 flex items-center gap-4 shadow-sm">
+    <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center text-2xl">❌</div>
+    <div>
+      <div class="text-2xl font-bold text-gray-900">{{ rejected_requests }}</div>
+      <div class="text-xs text-gray-500">Rejected</div>
     </div>
   </div>
 </div>
 
-<div class="grid md:grid-cols-2 gap-6 mb-8">
-  <!-- Event status breakdown -->
-  <div class="bg-white rounded-xl border shadow-sm p-5">
-    <h2 class="font-semibold text-gray-800 mb-4">Event Status Breakdown</h2>
-    <div class="space-y-2">
-      {% for status, count in status_counts.items() %}
-      <div class="flex items-center justify-between">
-        <span class="text-sm"><span class="badge-{{ status }} px-2 py-0.5 rounded-full text-xs font-medium">{{ status }}</span></span>
-        <div class="flex items-center gap-2">
-          <div class="h-2 bg-gray-100 rounded-full w-32">
-            {% if total_events > 0 %}
-            <div class="h-2 bg-orange-400 rounded-full" style="width: {{ (count / total_events * 100)|round }}%"></div>
-            {% endif %}
-          </div>
-          <span class="text-sm font-medium text-gray-700 w-6 text-right">{{ count }}</span>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <!-- Quick actions -->
-  <div class="bg-white rounded-xl border shadow-sm p-5">
+<div class="grid md:grid-cols-2 gap-6 mb-6">
+  {# Quick actions (organizer — no admin controls) #}
+  <div class="bg-white border rounded-xl shadow-sm p-5">
     <h2 class="font-semibold text-gray-800 mb-4">Quick Actions</h2>
     <div class="grid grid-cols-2 gap-3">
       <a href="/events/create" class="flex items-center gap-2 p-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg transition text-sm font-medium text-orange-800">
@@ -70,21 +205,49 @@
       <a href="/requests/create" class="flex items-center gap-2 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition text-sm font-medium text-blue-800">
         <span>📋</span> Request Resources
       </a>
-      <a href="/resources/create" class="flex items-center gap-2 p-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition text-sm font-medium text-green-800">
-        <span>🔧</span> Add Resource
+      <a href="/events" class="flex items-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition text-sm font-medium text-gray-700">
+        <span>📅</span> My Events
       </a>
-      <a href="/resources/availability" class="flex items-center gap-2 p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition text-sm font-medium text-purple-800">
-        <span>📊</span> Check Availability
+      <a href="/requests" class="flex items-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition text-sm font-medium text-gray-700">
+        <span>📋</span> My Requests
       </a>
     </div>
+    <div class="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700">
+      <strong>How it works:</strong> Submit a resource request → Administrator reviews and approves or rejects → You see the result here.
+    </div>
+  </div>
+
+  {# Pending requests for this organizer #}
+  <div class="bg-white border rounded-xl shadow-sm">
+    <div class="flex items-center justify-between p-5 border-b">
+      <h2 class="font-semibold text-gray-800">My Pending Requests</h2>
+      <a href="/requests?status=Pending" class="text-xs text-orange-600 hover:underline">View all →</a>
+    </div>
+    {% if pending_request_list %}
+    <div class="divide-y">
+      {% for req in pending_request_list %}
+      <a href="/requests/{{ req.id }}" class="flex items-start gap-3 p-4 hover:bg-gray-50 transition">
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-sm text-gray-900 truncate">{{ req.event.name }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">
+            {{ req.start_datetime.strftime('%d %b') }} · {{ req.items|length }} resource type(s)
+          </div>
+        </div>
+        <span class="badge-Pending px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">Pending</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-gray-400 text-sm">No pending requests.</div>
+    {% endif %}
   </div>
 </div>
 
 <div class="grid md:grid-cols-2 gap-6">
-  <!-- Upcoming events -->
-  <div class="bg-white rounded-xl border shadow-sm">
+  {# Upcoming events #}
+  <div class="bg-white border rounded-xl shadow-sm">
     <div class="flex items-center justify-between p-5 border-b">
-      <h2 class="font-semibold text-gray-800">Upcoming Events</h2>
+      <h2 class="font-semibold text-gray-800">My Upcoming Events</h2>
       <a href="/events" class="text-xs text-orange-600 hover:underline">View all →</a>
     </div>
     {% if upcoming_events %}
@@ -93,7 +256,7 @@
       <a href="/events/{{ event.id }}" class="flex items-start gap-3 p-4 hover:bg-gray-50 transition">
         <div class="min-w-0 flex-1">
           <div class="font-medium text-sm text-gray-900 truncate">{{ event.name }}</div>
-          <div class="text-xs text-gray-500 mt-0.5">{{ event.start_datetime.strftime('%d %b %Y, %I:%M %p') }} · {{ event.organizer }}</div>
+          <div class="text-xs text-gray-500 mt-0.5">{{ event.start_datetime.strftime('%d %b %Y, %I:%M %p') }}</div>
         </div>
         <span class="badge-{{ event.status }} px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">{{ event.status }}</span>
       </a>
@@ -104,28 +267,31 @@
     {% endif %}
   </div>
 
-  <!-- Recent requests -->
-  <div class="bg-white rounded-xl border shadow-sm">
+  {# Approved allocations for organizer #}
+  <div class="bg-white border rounded-xl shadow-sm">
     <div class="flex items-center justify-between p-5 border-b">
-      <h2 class="font-semibold text-gray-800">Recent Resource Requests</h2>
-      <a href="/requests" class="text-xs text-orange-600 hover:underline">View all →</a>
+      <h2 class="font-semibold text-gray-800">✅ Approved Allocations</h2>
+      <a href="/requests?status=Approved" class="text-xs text-orange-600 hover:underline">View all →</a>
     </div>
-    {% if recent_requests %}
+    {% if approved_request_list %}
     <div class="divide-y">
-      {% for req in recent_requests %}
+      {% for req in approved_request_list %}
       <a href="/requests/{{ req.id }}" class="flex items-start gap-3 p-4 hover:bg-gray-50 transition">
-        <div class="min-w-0 flex-1">
+        <div class="flex-1 min-w-0">
           <div class="font-medium text-sm text-gray-900 truncate">{{ req.event.name }}</div>
-          <div class="text-xs text-gray-500 mt-0.5">{{ req.start_datetime.strftime('%d %b %Y, %I:%M %p') }} · {{ req.items|length }} resource type(s)</div>
+          <div class="text-xs text-gray-500 mt-0.5">
+            {{ req.allocations|length }} resource(s) allocated
+          </div>
         </div>
-        <span class="badge-{{ req.status }} px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">{{ req.status }}</span>
+        <span class="badge-Approved px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">Approved</span>
       </a>
       {% endfor %}
     </div>
     {% else %}
-    <div class="p-8 text-center text-gray-400 text-sm">No requests yet. <a href="/requests/create" class="text-orange-600 hover:underline">Make a request →</a></div>
+    <div class="p-8 text-center text-gray-400 text-sm">No approved requests yet.</div>
     {% endif %}
   </div>
 </div>
 
+{% endif %}
 {% endblock %}

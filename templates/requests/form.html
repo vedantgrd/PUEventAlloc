@@ -10,7 +10,6 @@
 <div class="max-w-3xl">
   <form method="post" class="space-y-5">
 
-    <!-- Event selection -->
     <div class="bg-white border rounded-xl shadow-sm p-5">
       <h2 class="font-semibold text-gray-800 mb-4">1. Select Event</h2>
       {% set selected_event_id = request.args.get('event_id', form_data.get('event_id', '')) %}
@@ -18,44 +17,49 @@
         class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
         <option value="">Choose an event…</option>
         {% for event in events %}
-          <option value="{{ event.id }}" {% if selected_event_id|string == event.id|string %}selected{% endif %}
+          <option value="{{ event.id }}"
+            {% if selected_event_id|string == event.id|string %}selected{% endif %}
+            data-start="{{ event.start_datetime.strftime('%Y-%m-%dT%H:%M') }}"
+            data-end="{{ event.end_datetime.strftime('%Y-%m-%dT%H:%M') }}"
             data-attendance="{{ event.expected_attendance }}">
             {{ event.name }} ({{ event.organizer }}, {{ event.start_datetime.strftime('%d %b %Y') }}, Attendance: {{ event.expected_attendance }})
           </option>
         {% endfor %}
       </select>
+      <p class="text-xs text-gray-400 mt-1">Resource usage time must fall within the selected event's time window.</p>
     </div>
 
-    <!-- Time window -->
     <div class="bg-white border rounded-xl shadow-sm p-5">
       <h2 class="font-semibold text-gray-800 mb-4">2. Resource Usage Time</h2>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Start Date & Time <span class="text-red-500">*</span></label>
-          <input type="datetime-local" name="start_datetime" value="{{ form_data.get('start_datetime', '') }}" required
+          <label class="block text-sm font-medium text-gray-700 mb-1">Start <span class="text-red-500">*</span></label>
+          <input type="datetime-local" name="start_datetime" id="req_start"
+            value="{{ form_data.get('start_datetime', '') }}" required
             class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">End Date & Time <span class="text-red-500">*</span></label>
-          <input type="datetime-local" name="end_datetime" value="{{ form_data.get('end_datetime', '') }}" required
+          <label class="block text-sm font-medium text-gray-700 mb-1">End <span class="text-red-500">*</span></label>
+          <input type="datetime-local" name="end_datetime" id="req_end"
+            value="{{ form_data.get('end_datetime', '') }}" required
             class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
         </div>
       </div>
     </div>
 
-    <!-- Resource items -->
     <div class="bg-white border rounded-xl shadow-sm p-5">
       <h2 class="font-semibold text-gray-800 mb-1">3. Resources Needed</h2>
-      <p class="text-xs text-gray-400 mb-4">Add one row per resource type. If all of any type are unavailable, the entire request fails.</p>
-
+      <p class="text-xs text-gray-400 mb-4">
+        If <em>any</em> resource is unavailable, the <strong>entire request</strong> fails — no partial allocation.
+      </p>
       <div id="items-container" class="space-y-3">
-        <div class="item-row grid grid-cols-12 gap-2 items-end" id="row-0">
+        <div class="item-row grid grid-cols-12 gap-2 items-end">
           <div class="col-span-4">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Resource Type</label>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
             <select name="item_type[]" class="type-select w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
               <option value="">Select…</option>
               {% for t in resource_types %}
-              <option value="{{ t }}">{{ t }}</option>
+                <option value="{{ t }}">{{ t }}</option>
               {% endfor %}
             </select>
           </div>
@@ -65,29 +69,27 @@
               class="w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
           </div>
           <div class="col-span-5">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Preferred Resource (optional)</label>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Preferred (optional)</label>
             <select name="item_preferred[]" class="pref-select w-full border rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400">
               <option value="">Auto-assign best match</option>
             </select>
           </div>
           <div class="col-span-1 flex justify-end">
-            <button type="button" onclick="removeRow(this)" class="text-red-400 hover:text-red-600 text-lg font-bold pb-1">×</button>
+            <button type="button" onclick="removeRow(this)" class="text-red-400 hover:text-red-600 text-2xl font-bold leading-none pb-1" title="Remove">×</button>
           </div>
         </div>
       </div>
-
       <button type="button" onclick="addRow()"
         class="mt-3 text-sm text-orange-600 hover:text-orange-800 border border-orange-300 hover:border-orange-500 px-3 py-1.5 rounded-lg transition">
-        + Add Another Resource Type
+        + Add Another Resource
       </button>
     </div>
 
-    <!-- Notes -->
     <div class="bg-white border rounded-xl shadow-sm p-5">
-      <h2 class="font-semibold text-gray-800 mb-3">4. Additional Notes</h2>
+      <h2 class="font-semibold text-gray-800 mb-3">4. Notes</h2>
       <textarea name="notes" rows="2"
         class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-        placeholder="Any special requirements or notes…">{{ form_data.get('notes', '') }}</textarea>
+        placeholder="Optional notes or special requirements…">{{ form_data.get('notes', '') }}</textarea>
     </div>
 
     <div class="flex gap-3">
@@ -98,11 +100,11 @@
     </div>
   </form>
 </div>
-
 {% endblock %}
+
 {% block scripts %}
 <script>
-// Resource data from server
+// FIX: resources_json is a list of plain dicts — fully JSON serializable
 const allResources = {{ resources_json | tojson }};
 
 function getResourcesByType(type) {
@@ -110,9 +112,8 @@ function getResourcesByType(type) {
 }
 
 function updatePrefSelect(row) {
-  const typeSelect = row.querySelector('.type-select');
+  const type = row.querySelector('.type-select').value;
   const prefSelect = row.querySelector('.pref-select');
-  const type = typeSelect.value;
   const filtered = getResourcesByType(type);
   prefSelect.innerHTML = '<option value="">Auto-assign best match</option>';
   filtered.forEach(r => {
@@ -123,6 +124,15 @@ function updatePrefSelect(row) {
   });
 }
 
+// Auto-fill time bounds from selected event
+document.querySelector('select[name="event_id"]').addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  const start = opt.dataset.start;
+  const end   = opt.dataset.end;
+  if (start) document.getElementById('req_start').value = start;
+  if (end)   document.getElementById('req_end').value   = end;
+});
+
 document.querySelectorAll('.type-select').forEach(sel => {
   sel.addEventListener('change', () => updatePrefSelect(sel.closest('.item-row')));
 });
@@ -130,13 +140,13 @@ document.querySelectorAll('.type-select').forEach(sel => {
 let rowCount = 1;
 function addRow() {
   const container = document.getElementById('items-container');
-  const template = container.querySelector('.item-row').cloneNode(true);
-  template.id = `row-${rowCount++}`;
-  template.querySelector('.type-select').value = '';
-  template.querySelector('.pref-select').innerHTML = '<option value="">Auto-assign best match</option>';
-  template.querySelector('input[name="item_qty[]"]').value = '1';
-  template.querySelector('.type-select').addEventListener('change', () => updatePrefSelect(template));
-  container.appendChild(template);
+  const clone = container.querySelector('.item-row').cloneNode(true);
+  clone.querySelector('.type-select').value = '';
+  clone.querySelector('.pref-select').innerHTML = '<option value="">Auto-assign best match</option>';
+  clone.querySelector('input[name="item_qty[]"]').value = '1';
+  clone.querySelector('.type-select').addEventListener('change', () => updatePrefSelect(clone));
+  container.appendChild(clone);
+  rowCount++;
 }
 
 function removeRow(btn) {
