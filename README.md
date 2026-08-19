@@ -1,19 +1,23 @@
 # PUEventAlloc — Pillai University Event Resource Allocation System
 
-A Flask web application for managing college events and shared resources (auditoriums, labs, projectors, microphones, cameras, computers) with conflict detection, atomic allocation, and role-based access control.
+A Flask web application developed as an **internship task project** for managing university events and shared resources such as auditoriums, laboratories, projectors, microphones, and cameras.
+
+The system supports event management, resource requests, availability checking, conflict detection, atomic allocation, and role-based access control.
 
 ---
 
 ## Features
 
-- **Event Management** — Create, edit, cancel, and filter events (Draft → Pending → Approved → Completed/Cancelled)
-- **Resource Management** — Admin manages resources with activate/deactivate; inactive resources cannot be allocated
-- **Resource Requests** — Organizers request one or more resources per event with a specific time window
-- **Conflict Detection** — Backend prevents double-booking; back-to-back bookings are allowed
-- **Atomic Allocation** — If any resource in a request fails, zero are allocated (all-or-nothing transaction)
-- **Alternative Suggestions** — System suggests the best available alternative when a resource is unavailable
-- **Role-Based Access** — Admin vs Organizer with server-side enforcement; no IDOR vulnerabilities
-- **Approval Workflow** — Pending → Approved (Allocated) / Rejected; cancellation releases resources
+- **Event Management** — Create, edit, cancel, and filter events
+- **Resource Management** — Admin manages resources and their availability
+- **Resource Requests** — Organizers request one or more resources for an event
+- **Conflict Detection** — Prevents double-booking of resources
+- **Atomic Allocation** — All resources in a request are allocated together or none are allocated
+- **Alternative Suggestions** — Suggests suitable available alternatives
+- **Role-Based Access** — Admin and Organizer roles with server-side authorization
+- **Approval Workflow** — Pending → Approved / Rejected
+- **Availability Validation** — Requests must fall within the event's time window
+- **Approval-Time Revalidation** — Resources are checked again before allocation
 
 ---
 
@@ -22,87 +26,184 @@ A Flask web application for managing college events and shared resources (audito
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.10+, Flask 3 |
-| ORM | SQLAlchemy 2 + Flask-Migrate |
+| ORM | SQLAlchemy 2 |
 | Database | SQLite |
-| Auth | Flask-Login + Werkzeug password hashing |
-| Frontend | Jinja2, Tailwind CSS (CDN), vanilla JS |
-| Testing | pytest + pytest-flask |
+| Authentication | Flask-Login |
+| Password Hashing | Werkzeug |
+| Migrations | Flask-Migrate |
+| Frontend | Jinja2 |
+| Styling | Tailwind CSS |
+| JavaScript | Vanilla JavaScript |
+| Testing | pytest |
 | CI | GitHub Actions |
+| Deployment | Render |
 
 ---
 
-## Architecture
+## Project Structure
 
-```
-Browser
-  │
-  ▼
-Flask Routes (app.py)
-  │  ← login_required / admin_required decorators
-  ▼
-Business Services (services.py)
-  │  ← conflict detection, alternative selection, atomic allocation
-  ▼
-SQLAlchemy ORM (models.py)
-  │
-  ▼
-SQLite (pillai_events.db)
+```text
+PUEventAlloc/
+├── app.py
+├── models.py
+├── services.py
+├── seed.py
+├── init_db.py
+├── requirements.txt
+├── .env.example
+├── README.md
+├── templates/
+├── static/
+└── tests/
 ```
 
 ---
 
-## Installation & Running
+## Installation & Running Locally
+
+### 1. Clone the repository
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/vedantgrd/PUEventAlloc
+git clone https://github.com/vedantgrd/PUEventAlloc.git
 cd PUEventAlloc
+```
 
-# 2. Create and activate virtual environment
+### 2. Create a virtual environment
+
+#### Windows
+
+```bash
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+venv\Scripts\activate
+```
 
-# 3. Install dependencies
+#### macOS/Linux
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
-# 4. Configure environment
-cp .env.example .env
-# Edit .env and set a strong SECRET_KEY
+### 4. Configure environment variables
 
-# 5. Seed demo data (creates DB + sample users/events/resources)
+Create a `.env` file based on `.env.example`:
+
+```env
+SECRET_KEY=replace-with-a-long-random-string
+DATABASE_URL=sqlite:///pillai_events.db
+FLASK_ENV=development
+FLASK_DEBUG=1
+```
+
+Generate a secure secret key with:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Copy the generated value into `SECRET_KEY`.
+
+### 5. Create and seed the database
+
+```bash
 python seed.py
+```
 
-# 6. Run the application
+### 6. Run the application
+
+```bash
 python app.py
-# → Open http://localhost:5000
+```
+
+Open:
+
+```text
+http://localhost:5000
 ```
 
 ---
 
 ## Database Setup
 
-SQLite database is created automatically. Tables are created by `db.create_all()` on startup.
+The application uses SQLite for the internship project and local development.
 
-**Schema:**
+The database file is:
+
+```text
+pillai_events.db
+```
+
+The main tables are:
 
 | Table | Purpose |
 |---|---|
-| `users` | Admin and Organizer accounts with hashed passwords |
-| `events` | Event details and lifecycle status |
-| `resources` | Allocatable resources with type, capacity, active flag |
-| `resource_requests` | A request to use resources for an event at a specific time |
-| `resource_request_items` | Line items in a request (type, quantity, preferred resource) |
-| `resource_allocations` | Confirmed allocations; cancelled records are preserved for history |
+| `users` | Admin and Organizer accounts |
+| `events` | Event details and status |
+| `resources` | Allocatable university resources |
+| `resource_requests` | Resource requests |
+| `resource_request_items` | Individual requested resources |
+| `resource_allocations` | Confirmed resource allocations |
 
-**Indexes on `resource_allocations`:**
-- `ix_alloc_resource_time` — `(resource_id, start_datetime, end_datetime)` — makes conflict queries fast
-- `ix_alloc_status` — `status` — fast filtering of active vs cancelled
+---
 
-To reset: delete `pillai_events.db` then `python seed.py`.
+## Important Local Database Fix
+
+If the application code/models have been changed and the existing `pillai_events.db` was created using an older version of the models, `db.create_all()` will **not update existing tables**.
+
+For example, if the current `Event` model contains:
+
+```text
+owner_id
+```
+
+but the old SQLite database does not contain that column, the application may produce:
+
+```text
+sqlite3.OperationalError:
+table events has no column named owner_id
+```
+
+This is a schema mismatch between the existing SQLite database and the current models.
+
+### Fix during local development
+
+Delete the old database:
+
+#### Windows
+
+```cmd
+del pillai_events.db
+```
+
+#### macOS/Linux
+
+```bash
+rm pillai_events.db
+```
+
+Then recreate and seed it:
+
+```bash
+python seed.py
+```
+
+This creates a fresh database using the current models.
+
+**Warning:** Deleting the database removes the existing local data.
+
+For a production application, database migrations should be used instead of deleting the database.
 
 ---
 
 ## Demo Credentials
+
+The seed script creates the following demo accounts:
 
 | Role | Username | Password |
 |---|---|---|
@@ -110,169 +211,478 @@ To reset: delete `pillai_events.db` then `python seed.py`.
 | Organizer | `organizer` | `org123` |
 | Organizer | `organizer2` | `org123` |
 
-> Change passwords before deploying anywhere public.
+These credentials are included for demonstration and testing purposes.
+
+They should be changed before using the application in a real production environment.
 
 ---
 
-## How Conflict Detection Works
+## Event Workflow
 
-A conflict exists when two allocations for the same resource **overlap in time**. The canonical formula:
+Events follow a basic lifecycle:
 
+```text
+Draft
+  ↓
+Pending
+  ↓
+Approved
+  ↓
+Completed
 ```
+
+An event may also be:
+
+```text
+Pending → Rejected
+```
+
+or:
+
+```text
+Approved → Cancelled
+```
+
+---
+
+## Resource Request Workflow
+
+```text
+Organizer
+    ↓
+Select Event
+    ↓
+Select Usage Time
+    ↓
+Select Resources
+    ↓
+Submit Request
+    ↓
+System validates availability
+    ↓
+Admin reviews request
+    ↓
+Approve / Reject
+    ↓
+Resources allocated if approved
+```
+
+---
+
+## Conflict Detection
+
+A resource is considered unavailable when another active allocation overlaps the requested time.
+
+The system uses:
+
+```text
 existing.start_datetime < requested.end_datetime
 AND
-existing.end_datetime   > requested.start_datetime
+existing.end_datetime > requested.start_datetime
 ```
 
-This correctly identifies all overlap shapes:
+Examples:
 
-| Case | Existing | New | Result |
-|---|---|---|---|
-| Partial overlap | 10:00–14:00 | 12:00–16:00 | ❌ CONFLICT |
-| Back-to-back | 10:00–14:00 | 14:00–16:00 | ✅ ALLOWED |
-| Before | 10:00–14:00 | 08:00–10:00 | ✅ ALLOWED |
-| Exact same | 10:00–14:00 | 10:00–14:00 | ❌ CONFLICT |
-| New contains existing | 10:00–14:00 | 09:00–15:00 | ❌ CONFLICT |
-| New inside existing | 10:00–14:00 | 11:00–12:00 | ❌ CONFLICT |
-| New wraps existing | 10:00–14:00 | 08:00–16:00 | ❌ CONFLICT |
+| Existing | Requested | Result |
+|---|---|---|
+| 10:00–14:00 | 12:00–16:00 | ❌ Conflict |
+| 10:00–14:00 | 14:00–16:00 | ✅ Allowed |
+| 10:00–14:00 | 08:00–10:00 | ✅ Allowed |
+| 10:00–14:00 | 10:00–14:00 | ❌ Conflict |
+| 10:00–14:00 | 09:00–15:00 | ❌ Conflict |
+| 10:00–14:00 | 11:00–12:00 | ❌ Conflict |
 
-Only `status = 'Allocated'` records block resources. Cancelled allocations are excluded.
+Back-to-back bookings are allowed.
 
-Back-to-back bookings are allowed because `14:00 < 14:00` is `False` — the formula naturally handles this without special-casing.
+Cancelled allocations do not block resources.
 
 ---
 
-## Atomic Multi-Resource Transactions
+## Atomic Resource Allocation
 
-Implemented in `services.process_allocation()`:
+Resource allocation is performed as an all-or-nothing transaction.
 
-```
-BEGIN (implicit SQLAlchemy session)
-  For each resource in the request:
-    1. Revalidate: resource still exists
-    2. Revalidate: resource still active (race condition safe)
-    3. Revalidate: resource type still matches
-    4. Revalidate: capacity still sufficient
-    5. Revalidate: no time conflict (race condition safe)
-    If any check fails → db.session.rollback() → return error
-  All checks passed → db.session.add(all allocations) → commit
+For example, if a request contains:
+
+```text
+1 Auditorium
+1 Projector
+2 Microphones
 ```
 
-**No allocations are created until every resource passes all checks.** If the commit fails, SQLAlchemy rolls back automatically.
+and one of the required resources cannot be allocated, the entire request fails.
+
+No partial allocation is left in the database.
+
+The system revalidates:
+
+1. Resource existence
+2. Resource active status
+3. Resource type
+4. Capacity
+5. Time availability
+
+Only after all checks succeed are the allocations committed.
 
 ---
 
 ## Alternative Resource Selection
 
-Implemented in `services.find_alternative()`:
+When a preferred resource is unavailable, the system can suggest an alternative.
 
-1. **Filter by type** — same `resource_type` as requested
-2. **Filter active** — `is_active = True` only
-3. **Filter by capacity** — for venues (Auditorium, Laboratory): `capacity >= event.expected_attendance`
-4. **Check availability** — no active allocation overlapping the requested time
-5. **Rank** — ascending capacity (smallest room that fits) for venues; alphabetical for equipment
-6. **Return first match** — deterministic; first conflict-free candidate is suggested
+The selection process considers:
 
-Example: attendance=80, Hall A (cap 100) and Hall B (cap 200) both available → Hall A is suggested (smallest fit).
+1. Matching resource type
+2. Active resource
+3. Required capacity
+4. Time availability
+5. Best suitable capacity for venues
 
----
+For example:
 
-## Approval-Time Revalidation (Race Condition Safety)
+```text
+Expected attendance: 80
 
-Resources are revalidated **at the moment of approval**, not just at request creation:
-
-- A resource deactivated after the request was submitted → approval fails
-- A resource booked by another request after submission → approval fails
-
-This prevents stale state from causing incorrect allocations.
-
----
-
-## Authentication & Authorization
-
-- Passwords hashed with Werkzeug (PBKDF2 + SHA-256)
-- Sessions managed by Flask-Login
-- Two roles: `Admin` and `Organizer`
-
-| Action | Admin | Organizer |
-|---|---|---|
-| Create/edit own events | ✅ | ✅ |
-| View others' events | ✅ | ❌ (403) |
-| Add/edit resources | ✅ | ❌ (403) |
-| Activate/deactivate resources | ✅ | ❌ (403) |
-| Approve/reject requests | ✅ | ❌ (403) |
-| View all requests | ✅ | Own only |
-
-Authorization is enforced server-side on every route. Hiding buttons in HTML is not sufficient — direct URL access is blocked.
-
----
-
-## Request-Within-Event Validation
-
-A resource request's time window must fall within the event's time window:
-
+Seminar Hall A → Capacity 100
+Main Auditorium → Capacity 500
 ```
+
+The system prefers the smaller suitable venue.
+
+---
+
+## Request Within Event Validation
+
+Resource usage must fall completely within the selected event's scheduled time.
+
+The rule is:
+
+```text
 event.start_datetime <= request.start_datetime
 AND
 request.end_datetime <= event.end_datetime
 ```
 
-Enforced on the backend in `app.py::request_create`.
+Example:
+
+```text
+Event:
+09:00 → 17:00
+
+Valid:
+10:00 → 15:00
+
+Invalid:
+08:00 → 15:00
+```
+
+This validation is enforced on the backend.
+
+---
+
+## Role-Based Access Control
+
+The application has two roles:
+
+- Admin
+- Organizer
+
+| Action | Admin | Organizer |
+|---|---:|---:|
+| Create events | ✅ | ✅ |
+| Edit own events | ✅ | ✅ |
+| View other organizers' events | ✅ | ❌ |
+| Manage resources | ✅ | ❌ |
+| Activate/deactivate resources | ✅ | ❌ |
+| View all requests | ✅ | ❌ |
+| View own requests | ✅ | ✅ |
+| Approve requests | ✅ | ❌ |
+| Reject requests | ✅ | ❌ |
+
+Authorization is enforced server-side rather than relying only on hidden frontend buttons.
+
+---
+
+## Approval-Time Revalidation
+
+Resources are checked again when an administrator approves a request.
+
+This prevents stale requests from allocating resources that became unavailable after the request was submitted.
+
+Example:
+
+```text
+Request submitted
+      ↓
+Resource available
+      ↓
+Another request books resource
+      ↓
+Admin approves original request
+      ↓
+System detects conflict
+      ↓
+Allocation fails
+```
 
 ---
 
 ## Testing
 
-```bash
-# Run all 59 tests
-pytest tests/ -v
+Run the complete test suite:
 
-# Run a specific module
-pytest tests/test_conflicts.py -v
+```bash
+pytest tests/ -v
 ```
 
-**Test coverage:**
+Tests cover:
 
-| Module | Tests |
+| Test Module | Purpose |
 |---|---|
-| `test_conflicts.py` | 10 — all 7 overlap cases + boundary + cancelled exclusion |
-| `test_allocation.py` | 8 — atomic rollback, cancellation, history preservation |
-| `test_alternatives.py` | 8 — capacity, inactive, type, smallest-fit, back-to-back |
-| `test_authorization.py` | 9 — admin routes, IDOR, state transitions |
-| `test_events.py` | 8 — validation + authorization |
-| `test_requests.py` | 8 — time-window, inactive, wrong type, capacity |
-| `test_resources.py` | 7 — CRUD, capacity rules, duplicate names |
-| **Total** | **59 tests, all passing** |
+| `test_conflicts.py` | Conflict detection |
+| `test_allocation.py` | Atomic allocation and cancellation |
+| `test_alternatives.py` | Alternative resource selection |
+| `test_authorization.py` | Authentication and authorization |
+| `test_events.py` | Event validation |
+| `test_requests.py` | Resource request validation |
+| `test_resources.py` | Resource management |
+
+---
+
+## Deployment on Render
+
+The project is deployed as a Python Web Service on Render.
+
+### Build Command
+
+```bash
+pip install -r requirements.txt
+```
+
+### Start Command
+
+```bash
+gunicorn app:app
+```
+
+### Environment Variables
+
+Set the following in Render:
+
+```text
+SECRET_KEY=<your-generated-random-secret>
+DATABASE_URL=sqlite:///pillai_events.db
+```
+
+The `SECRET_KEY` should be a long random value.
+
+Generate one locally with:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+---
+
+## Render SQLite Note
+
+The internship version uses SQLite.
+
+SQLite is convenient for this project, but a SQLite file stored inside a deployment container should not be treated as permanent production storage. Redeployments or instance changes can cause the database file to be lost or recreated.
+
+Therefore:
+
+```text
+Local development
+→ SQLite is convenient
+
+Internship/demo deployment
+→ SQLite can be used with the above limitation
+
+Production deployment
+→ PostgreSQL is recommended
+```
+
+For persistent production data, the application should be migrated to PostgreSQL or another persistent database.
+
+---
+
+## Deployment-Specific Schema Issue
+
+During deployment, an issue can occur if an old SQLite database exists while the current SQLAlchemy models contain newer columns.
+
+For example:
+
+```text
+Current Event model
+        ↓
+contains owner_id
+
+Existing SQLite database
+        ↓
+events table does not contain owner_id
+
+Result
+        ↓
+sqlite3.OperationalError
+```
+
+The local development fix is to remove the old database and run:
+
+```bash
+python seed.py
+```
+
+The original project code did not have this problem when starting with a fresh database. It occurred when deploying/reusing an SQLite database whose schema was created from an older version of the project.
+
+For a proper production deployment, Flask-Migrate/Alembic migrations should be used to update the database schema without deleting existing data.
 
 ---
 
 ## Environment Variables
 
-See `.env.example`:
+`.env.example`:
 
-```
+```env
 SECRET_KEY=replace-with-a-long-random-string
 DATABASE_URL=sqlite:///pillai_events.db
 FLASK_ENV=development
 FLASK_DEBUG=0
 ```
 
-Never commit `.env` to version control. Set `SECRET_KEY` to a random 32+ character string in production.
+For production, set:
+
+```text
+FLASK_DEBUG=0
+```
+
+and use a strong random `SECRET_KEY`.
 
 ---
 
-## Important Assumptions
+## Security Considerations
 
-1. **No timezone handling** — all datetimes stored and compared in UTC. Production would need timezone-aware timestamps.
-2. **SQLite concurrency** — SQLite has limited concurrent write support. For high traffic, migrate to PostgreSQL.
-3. **No email notifications** — approval/rejection notifications are UI-only.
-4. **No CSRF tokens** — forms rely on Flask-Login's session cookie. Adding Flask-WTF CSRF tokens is recommended for production.
-5. **Organizer identity** — the `organizer` field on events is a free-text name; it is separate from the `owner_id` FK to the logged-in user.
-6. **Capacity for equipment** — Projectors, Microphones, Cameras, and Computers have no meaningful capacity; only Auditoriums and Laboratories require it.
+The application includes:
+
+- Password hashing with Werkzeug
+- Flask-Login authentication
+- Role-based authorization
+- Server-side access control
+- Resource ownership checks
+- Approval-time resource validation
+- Atomic database transactions
+
+For a production-ready system, the following would additionally be recommended:
+
+- CSRF protection
+- Secure cookies
+- HTTPS
+- PostgreSQL
+- Database migrations
+- Rate limiting
+- Password reset functionality
+- Production monitoring and logging
+
+---
 
 ## Known Limitations
 
-- No pagination on long lists
-- No email/password reset flow
-- No file uploads or attachments
-- SQLite not suitable for concurrent production load
+This project was developed as an **internship task** and is intended primarily as a functional demonstration.
+
+Current limitations include:
+
+- SQLite is used instead of PostgreSQL
+- SQLite is not ideal for high-concurrency production workloads
+- No email notification system
+- No password reset flow
+- No file uploads
+- No pagination for large datasets
+- No timezone-aware datetime handling
+- No CSRF implementation
+- Demo credentials are included for testing
+- Tailwind CSS is loaded through CDN
+
+---
+
+## Future Improvements
+
+Possible future improvements include:
+
+1. PostgreSQL database
+2. Proper database migrations
+3. CSRF protection
+4. Email notifications
+5. Password reset functionality
+6. Pagination
+7. Advanced search and filtering
+8. Calendar-based resource availability
+9. Audit logs
+10. Docker support
+11. Automated deployment pipeline
+12. Timezone-aware event scheduling
+
+---
+
+## Architecture
+
+```text
+Browser
+   │
+   ▼
+Flask Routes
+   │
+   ├── Authentication / Authorization
+   │
+   ▼
+Business Services
+   │
+   ├── Conflict Detection
+   ├── Resource Availability
+   ├── Alternative Selection
+   └── Atomic Allocation
+   │
+   ▼
+SQLAlchemy ORM
+   │
+   ▼
+SQLite Database
+```
+
+---
+
+## Project Status
+
+**Completed — Internship Task Project**
+
+The application demonstrates the complete event resource allocation workflow:
+
+```text
+Event Creation
+      ↓
+Resource Request
+      ↓
+Availability Validation
+      ↓
+Conflict Detection
+      ↓
+Admin Approval
+      ↓
+Atomic Resource Allocation
+```
+
+---
+
+## Repository
+
+GitHub:
+
+https://github.com/vedantgrd/PUEventAlloc
+
+---
+
+## Author
+
+**Vedant Garud**
+
+This project was developed as part of an internship task.
+
